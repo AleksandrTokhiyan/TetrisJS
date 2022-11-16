@@ -41,8 +41,8 @@ const KEYS = {
   DOWN: 40,
   LEFT: 37,
   RIGHT: 39,
-  ACTION: 17,
 }
+const INITIAL_SPEED = 1000
 
 class Tetris {
   constructor (boardElement) {
@@ -51,18 +51,21 @@ class Tetris {
     this.boardElement = boardElement
     this.boardElement.classList.add('__tetris-container')
 
-    this._speed = 1000
-    this._currentPiece = []
+    this._score = 0
+    this._level = 0
+    this._speed = INITIAL_SPEED
 
     this.board = new Array(BOARD_SIZE.y)
     for (let y = 0; y < BOARD_SIZE.y; y++)
       this.board[y] = new Array(BOARD_SIZE.x)
 
+    this._currentPiece = []
     this._addNewPiece()
 
     const timer = () => {
       this._timer = setTimeout(() => {
         this.movePieceDown()
+        this.level = Math.ceil((INITIAL_SPEED - this._speed) / 100)
         timer()
       }, this._speed)
     }
@@ -70,8 +73,42 @@ class Tetris {
   }
 
   set onGameOver (callback) {
-    if (typeof callback !== 'function') return
+    if (typeof callback !== 'function')
+      return
     this._gameOverCallback = callback
+  }
+
+  set onInfoChage (callback) {
+    if (typeof callback !== 'function')
+      return
+    this._infoChangeCallback = callback
+  }
+
+  get level () { return this._level }
+
+  set level (level) {
+    if (level === this._level)
+      return
+    this._level = level
+    this._updateInfo()
+  }
+
+  get score () { return this._score }
+
+  set score (score) {
+    if (score === this._score)
+      return
+    this._score = score
+    this._updateInfo()
+  }
+
+  _updateInfo () {
+    if (this._infoChangeCallback) {
+      this._infoChangeCallback({
+        level: this.level,
+        score: this.score,
+      })
+    }
   }
 
   movePieceDown () {
@@ -84,10 +121,12 @@ class Tetris {
 
     if (addNewPiece) {
       const currentPieceRow = this._currentPiece.reduce((maxY, block) => Math.max(block.y, maxY), 0)
-      if (currentPieceRow >= BOARD_SIZE.y - 3)
+      if (currentPieceRow >= BOARD_SIZE.y - 3) {
         this._gameOver()
-      else
+      } else {
+        this._checkFullRows()
         this._addNewPiece()
+      }
     } else {
       this._translateCurrentPiece(block => { block.y = block.y - 1 })
     }
@@ -165,6 +204,24 @@ class Tetris {
     this._updateBoard()
   }
 
+  _checkFullRows () {
+    let fullRowIndexes = []
+    for (let y = 0; y < BOARD_SIZE.y; y++) {
+      let fullRow = true
+      for (let x = 0; x < BOARD_SIZE.x; x++)
+        fullRow &= !!this.board[y][x]
+      if (fullRow)
+        fullRowIndexes.unshift(y)
+    }
+    fullRowIndexes.forEach(y => {
+      this.board[y].forEach(({ element }, i) => setTimeout(() => element.remove(), 10 * i))
+      this.board.splice(y, 1)
+      this.board.push(new Array(BOARD_SIZE.x))
+    })
+
+    this.score += fullRowIndexes.length * 100 * this.level
+  }
+
   _addNewPiece () {
     this._currentPiece.forEach(block => { block.currentPiece = false })
     this._currentPiece = []
@@ -226,10 +283,14 @@ let tetris
 window.onload = () => {
   tetris = new Tetris(document.getElementById('tetris'))
   tetris.onGameOver = () => console.log('GAME OVER')
+  tetris.onInfoChage = (info) => {
+    document.getElementsByClassName('__tetris-container')[0]
+        .dataset.infoText = `Level ${info.level}  ::  Score ${info.score}`
+  }
   document.addEventListener('keydown', event => {
     switch (event.keyCode) {
       case KEYS.UP:
-        tetris.movePieceDown()
+        tetris.rotatePiece()
         break
       case KEYS.DOWN:
         tetris.movePieceDown()
@@ -239,9 +300,6 @@ window.onload = () => {
         break
       case KEYS.RIGHT:
         tetris.movePieceRight()
-        break
-      case KEYS.ACTION:
-        tetris.rotatePiece()
         break
     }
   })
