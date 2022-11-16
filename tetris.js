@@ -36,14 +36,9 @@ const PIECES = {
     ' 00',
   ],
 }
-const KEYS = {
-  UP: 38,
-  DOWN: 40,
-  LEFT: 37,
-  RIGHT: 39,
-}
 const INITIAL_SPEED = 1000
 const SPEED_MULTIPLIER = 0.9995
+const LEVEL_DIVIDER = 25
 
 class Tetris {
   constructor (boardElement) {
@@ -62,13 +57,11 @@ class Tetris {
     this._currentPiece = []
     this._addNewPiece()
 
-    const timer = () => {
-      this._timer = setTimeout(() => {
-        this.movePieceDown()
-        this.level = (INITIAL_SPEED - this._speed) / 150
-        timer()
-      }, this._speed)
-    }
+    const timer = () => setTimeout(() => {
+      this.movePieceDown()
+      this.updateLevel()
+      this._timer = timer()
+    }, this._speed)
     timer()
   }
 
@@ -86,10 +79,11 @@ class Tetris {
 
   get level () { return Math.floor(this._level) }
 
-  set level (level) {
+  updateLevel () {
+    this._speed *= SPEED_MULTIPLIER
     const previousLevel = this.level
 
-    this._level = level + 1
+    this._level = (INITIAL_SPEED - this._speed) / LEVEL_DIVIDER + 1
 
     if (previousLevel !== this.level)
       this._updateInfo()
@@ -114,7 +108,7 @@ class Tetris {
   }
 
   movePieceDown () {
-    this._speed *= SPEED_MULTIPLIER
+    if (this._lockGame) return
 
     const addNewPiece = this._currentPiece.reduce((addNewPiece, block) => addNewPiece ||
       block.y === 0 ||
@@ -139,6 +133,8 @@ class Tetris {
   movePieceRight () { this._movePieceSide('right') }
 
   _movePieceSide (side) {
+    if (this._lockGame) return
+
     let xShift
     let hit
     if (side === 'right') {
@@ -160,6 +156,8 @@ class Tetris {
   }
 
   rotatePiece () {
+    if (this._lockGame) return
+
     const piecePosition = this._currentPiece.reduce((pos, block) => ({
       x: Math.min(block.x, pos.x),
       y: Math.max(block.y, pos.y),
@@ -207,7 +205,7 @@ class Tetris {
   }
 
   _checkFullRows () {
-    let fullRowIndexes = []
+    const fullRowIndexes = []
     for (let y = 0; y < BOARD_SIZE.y; y++) {
       let fullRow = true
       for (let x = 0; x < BOARD_SIZE.x; x++)
@@ -275,55 +273,11 @@ class Tetris {
   }
 
   _gameOver () {
+    this._lockGame = true
+
     clearTimeout(this._timer)
     if (this._gameOverCallback)
       this._gameOverCallback()
   }
-}
-
-/* ++++++++++++++++++++++ */
-let tetris
-window.onload = () => {
-  tetris = new Tetris(document.getElementById('tetris'))
-  tetris.onGameOver = () => console.log('GAME OVER')
-  tetris.onInfoChage = (info) => {
-    document.getElementsByClassName('__tetris-container')[0]
-        .dataset.infoText = `Level ${info.level}  ::  Score ${info.score}`
-  }
-
-  let leftKeyInterval
-  let downKeyInterval
-  let rightKeyInterval
-  let actionKeyInterval
-  document.getElementsByClassName('control--left')[0].ontouchstart = ({ target }) => {
-    leftKeyInterval = setInterval(() => tetris.movePieceLeft(), 50)
-    target.ontouchend = () => clearInterval(leftKeyInterval)
-  }
-  document.getElementsByClassName('control--down')[0].ontouchstart = ({ target }) => {
-    downKeyInterval = setInterval(() => tetris.movePieceDown(), 50)
-    target.ontouchend = () => clearInterval(downKeyInterval)
-  }
-  document.getElementsByClassName('control--right')[0].ontouchstart = ({ target }) => {
-    rightKeyInterval = setInterval(() => tetris.movePieceRight(), 50)
-    target.ontouchend = () => clearInterval(rightKeyInterval)
-  }
-  document.getElementsByClassName('control--action')[0].ontouchstart = () => tetris.rotatePiece()
-
-  document.addEventListener('keydown', event => {
-    switch (event.keyCode) {
-      case KEYS.UP:
-        tetris.rotatePiece()
-        break
-      case KEYS.DOWN:
-        tetris.movePieceDown()
-        break
-      case KEYS.LEFT:
-        tetris.movePieceLeft()
-        break
-      case KEYS.RIGHT:
-        tetris.movePieceRight()
-        break
-    }
-  })
 }
 
